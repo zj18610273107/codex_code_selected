@@ -32,7 +32,11 @@
     "commands": [
       {
         "command": "codex.sendSelectedCode",
-        "title": "Codex: 发送选中代码到 CLI"
+        "title": "Codex: 发送选中代码到 CLI（带前缀）"
+      },
+      {
+        "command": "codex.sendSelectedCodeWithoutPrefix",
+        "title": "Codex: 发送选中代码到 CLI（不带前缀）"
       }
     ],
     "keybindings": [
@@ -47,6 +51,11 @@
         {
           "command": "codex.sendSelectedCode",
           "group": "codex@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "codex.sendSelectedCodeWithoutPrefix",
+          "group": "codex@2",
           "when": "editorTextFocus"
         }
       ]
