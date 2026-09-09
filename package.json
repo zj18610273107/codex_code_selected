@@ -2,7 +2,7 @@
   "name": "codex-code-selected",
   "displayName": "Codex Code Selected",
   "description": "Send selected code to Codex CLI for analysis, review, or transformation",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "publisher": "codex-publisher",
   "license": "MIT",
   "engines": {
@@ -11,7 +11,12 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onUri"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
   "main": "./extension.js",
   "contributes": {
     "configuration": {
