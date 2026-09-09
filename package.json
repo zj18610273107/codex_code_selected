@@ -37,6 +37,10 @@
       {
         "command": "codex.sendSelectedCodeWithoutPrefix",
         "title": "Codex: 发送选中代码到 CLI（不带前缀）"
+      },
+      {
+        "command": "codex.smartTerminalPaste",
+        "title": "Codex: 终端智能粘贴"
       }
     ],
     "keybindings": [
@@ -44,9 +48,21 @@
         "command": "codex.sendSelectedCode",
         "key": "ctrl+alt+c",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "codex.smartTerminalPaste",
+        "key": "ctrl+v",
+        "when": "terminalFocus"
       }
     ],
     "menus": {
+      "terminal/context": [
+        {
+          "command": "codex.smartTerminalPaste",
+          "group": "navigation@1",
+          "when": "terminalFocus"
+        }
+      ],
       "editor/context": [
         {
           "command": "codex.sendSelectedCode",

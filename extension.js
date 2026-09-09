@@ -1,5 +1,9 @@
 const vscode = require('vscode');
 const path = require('path');
+const childProcess = require('child_process');
+
+const ALT_V_SEQUENCE = '\u001bv';
+const POWERSHELL_TIMEOUT_MS = 1500;
 
 /**
  * @param {vscode.ExtensionContext} context
@@ -13,8 +17,45 @@ function activate(context) {
 		'codex.sendSelectedCodeWithoutPrefix',
 		() => sendSelectedCode(false)
 	);
+	const smartTerminalPasteCommand = vscode.commands.registerCommand(
+		'codex.smartTerminalPaste',
+		() => smartTerminalPaste()
+	);
 
-	context.subscriptions.push(sendWithPrefixCommand, sendWithoutPrefixCommand);
+	context.subscriptions.push(
+		sendWithPrefixCommand,
+		sendWithoutPrefixCommand,
+		smartTerminalPasteCommand
+	);
+}
+
+async function smartTerminalPaste() {
+	const terminal = vscode.window.activeTerminal;
+
+	try {
+		const text = await vscode.env.clipboard.readText();
+
+		if (text.length > 0)
+			return pasteToTerminal();
+	} catch (_error) {
+		return pasteToTerminal();
+	}
+
+	if (!terminal || !isCodexTerminal(terminal))
+		return pasteToTerminal();
+
+	try {
+		const hasImage = await clipboardHasImage();
+
+		if (hasImage) {
+			terminal.sendText(ALT_V_SEQUENCE, false);
+			return;
+		}
+	} catch (_error) {
+		return pasteToTerminal();
+	}
+
+	return pasteToTerminal();
 }
 
 function sendSelectedCode(includePrefix) {
@@ -65,10 +106,46 @@ function sendSelectedCode(includePrefix) {
 
 function findCodexTerminal() {
 	const codexTerminal = vscode.window.terminals.find((terminal) =>
-		terminal.name.toLowerCase().includes('codex')
+		isCodexTerminal(terminal)
 	);
 
 	return codexTerminal || vscode.window.activeTerminal;
+}
+
+function isCodexTerminal(terminal) {
+	return terminal.name.toLowerCase().includes('codex');
+}
+
+function pasteToTerminal() {
+	return vscode.commands.executeCommand('workbench.action.terminal.paste');
+}
+
+function clipboardHasImage() {
+	return new Promise((resolve, reject) => {
+		childProcess.execFile(
+			'powershell.exe',
+			[
+				'-NoProfile',
+				'-NonInteractive',
+				'-STA',
+				'-Command',
+				'Add-Type -AssemblyName System.Windows.Forms; [Console]::Out.Write([System.Windows.Forms.Clipboard]::ContainsImage())',
+			],
+			{
+				timeout: POWERSHELL_TIMEOUT_MS,
+				windowsHide: true,
+				maxBuffer: 1024,
+			},
+			(error, stdout) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+
+				resolve(stdout.trim().toLowerCase() === 'true');
+			}
+		);
+	});
 }
 
 function deactivate() {}
