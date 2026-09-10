@@ -5,7 +5,10 @@ const net = require('net');
 const os = require('os');
 
 const ALT_V_SEQUENCE = '\u001bv';
+const BRACKETED_PASTE_START = '\u001b[200~';
+const BRACKETED_PASTE_END = '\u001b[201~';
 const POWERSHELL_TIMEOUT_MS = 1500;
+const MAX_CLIPBOARD_OUTPUT_BYTES = 6 * 1024 * 1024;
 const COPY_URI_PATH = '/copy';
 const COPY_URI_AUTHORITY = 'codex-publisher.codex-code-selected';
 const COPY_SESSION_PATTERN = /^[0-9a-f]{32}$/;
@@ -152,30 +155,39 @@ function codeCopySocketPath(session) {
 async function smartTerminalPaste() {
 	const terminal = vscode.window.activeTerminal;
 
-	try {
-		const text = await vscode.env.clipboard.readText();
-
-		if (text.length > 0)
-			return pasteToTerminal();
-	} catch (_error) {
-		return pasteToTerminal();
-	}
-
-	if (!terminal || !isCodexTerminal(terminal))
+	if (!terminal)
 		return pasteToTerminal();
 
 	try {
-		const hasImage = await clipboardHasImage();
+		const clipboard = await readWindowsClipboard();
 
-		if (hasImage) {
+		if (clipboard.kind === 'text') {
+			sendClipboardText(terminal, clipboard.text);
+			return;
+		}
+		if (clipboard.kind === 'image') {
 			terminal.sendText(ALT_V_SEQUENCE, false);
 			return;
 		}
 	} catch (_error) {
-		return pasteToTerminal();
+		// Native terminal paste is the safe fallback for text and unsupported hosts.
 	}
 
 	return pasteToTerminal();
+}
+
+function sendClipboardText(terminal, text) {
+	const safeText = text.replace(/[\u0000\u001b]/g, '');
+
+	if (/\r|\n/.test(safeText)) {
+		terminal.sendText(
+			`${BRACKETED_PASTE_START}${safeText}${BRACKETED_PASTE_END}`,
+			false
+		);
+		return;
+	}
+
+	terminal.sendText(safeText, false);
 }
 
 function sendSelectedCode(includePrefix) {
@@ -240,7 +252,7 @@ function pasteToTerminal() {
 	return vscode.commands.executeCommand('workbench.action.terminal.paste');
 }
 
-function clipboardHasImage() {
+function readWindowsClipboard() {
 	return new Promise((resolve, reject) => {
 		childProcess.execFile(
 			'powershell.exe',
@@ -249,12 +261,12 @@ function clipboardHasImage() {
 				'-NonInteractive',
 				'-STA',
 				'-Command',
-				'Add-Type -AssemblyName System.Windows.Forms; [Console]::Out.Write([System.Windows.Forms.Clipboard]::ContainsImage())',
+				'Add-Type -AssemblyName System.Windows.Forms; $text = [System.Windows.Forms.Clipboard]::GetText(); if ($text.Length -gt 0) { [Console]::Out.Write("text:"); [Console]::Out.Write([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($text))) } elseif ([System.Windows.Forms.Clipboard]::ContainsImage()) { [Console]::Out.Write("image") } else { [Console]::Out.Write("none") }',
 			],
 			{
 				timeout: POWERSHELL_TIMEOUT_MS,
 				windowsHide: true,
-				maxBuffer: 1024,
+				maxBuffer: MAX_CLIPBOARD_OUTPUT_BYTES,
 			},
 			(error, stdout) => {
 				if (error) {
@@ -262,7 +274,17 @@ function clipboardHasImage() {
 					return;
 				}
 
-				resolve(stdout.trim().toLowerCase() === 'true');
+				const output = stdout.trim();
+
+				if (output.startsWith('text:')) {
+					resolve({
+						kind: 'text',
+						text: Buffer.from(output.slice(5), 'base64').toString('utf8'),
+					});
+					return;
+				}
+
+				resolve({ kind: output.toLowerCase(), text: '' });
 			}
 		);
 	});

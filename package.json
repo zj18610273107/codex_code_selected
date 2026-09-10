@@ -2,7 +2,7 @@
   "name": "codex-code-selected",
   "displayName": "Codex Code Selected",
   "description": "Send selected code to Codex CLI for analysis, review, or transformation",
-  "version": "0.1.9",
+  "version": "0.1.13",
   "publisher": "codex-publisher",
   "license": "MIT",
   "engines": {
@@ -12,7 +12,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onUri"
+    "*"
   ],
   "extensionKind": [
     "workspace"
